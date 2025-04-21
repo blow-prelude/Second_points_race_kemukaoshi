@@ -73,11 +73,13 @@ def detect_line(edges,o):
     # delta=average-rw/2
     return T,o
 
+
+
 # 与单片机通信，解码得到的数据
 def get_mode():
-    # if ser.in_waiting:     # 检测串口缓冲区是否有数据
+    # if globals.ser.in_waiting:     # 检测串口缓冲区是否有数据
     #     try:
-    #         rx_buf = ser.read().decode('utf-8').strip()  
+    #         rx_buf = globals.ser.read().decode('utf-8').strip()  
     #         if rx_buf in ('1', '2', '3'):
     #             data=int(rx_buf)
     #             rx_buf=0
