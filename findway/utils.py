@@ -49,37 +49,45 @@ def get_edges(frame):
  
 # 对图像进行概率霍夫变换处理，如果直线的斜率很大就判定为竖线
 # 计算横线的平均中线与设定的中线的距离
-def detect_line(edges,o):
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 1, minLineLength=100, maxLineGap=60)
+def detect_line(edges,o,ver_edge=None,hor_edge=None):
+    ver_roi = edges[ver_edge[2]:ver_edge[3],ver_edge[0]:ver_edge[1]]  # 竖线roi区域
+    hor_roi = edges[hor_edge[2]:hor_edge[3],hor_edge[0]:hor_edge[1]]  # 横线roi区域
+    lines1 = cv2.HoughLinesP(ver_roi, 1, np.pi / 180, 1, minLineLength=50, maxLineGap=10)
+    lines2 = cv2.HoughLinesP(hor_roi, 1, np.pi / 180, 1, minLineLength=50, maxLineGap=10)
     # fn=0
     # n=0
     y_sum,point_sum=0,0
     avarage_y,deltas=0.0,0.0
     tan=1.0
     T=0
-    if lines is not None:
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
+    if lines1 is not None:
+        for line1 in lines1:
+            x1, y1, x2, y2 = line1[0]
             # # 进行坐标转化
-            # cv2.line(o, (x1+ltop[0], y1+ltop[1]), (x2+ltop[0], y2+ltop[1]), (255, 0, 0), 5)
-            # n+=2
-            # fn+=x1
-            # fn+=x2
+            cv2.line(o, (x1+ver_edge[0], y1+ver_edge[2]), (x2+ver_edge[0], y2+ver_edge[2]), (255, 0, 0), 5)
+             # 竖线有2种情况，斜率很大可近似看作，或者是理想的 斜率不存在
+            if x1!=x2:
+                tan=(y1-y2)/(x1-x2)
+                # myprint(''"tan=",tan)
+                # 如果斜率很大判定为直线
+                if abs(tan)>=config.SLOPE_VERTICAL_THRESHOLD and abs(y1-y2)>config.MIN_LINE_HEIGHT_RATIO*edges.shape[0]:
+                        T+=1
+            else:
+                T+1               
 
+    lines2 = cv2.HoughLinesP(hor_roi, 1, np.pi / 180, 1, minLineLength=50, maxLineGap=10)
+    if lines2 is not None:
+        for line2 in lines2:
+            x1, y1, x2, y2 = line2[0]
+            # # 进行坐标转化
+            cv2.line(o, (x1+hor_edge[0], y1+hor_edge[2]), (x2+hor_edge[0], y2+hor_edge[2]), (255, 255, 0), 5)
             # 计算横线的平均中线与设定的中线的距离
             y_sum+=y1
             y_sum+=y2
             point_sum+=2
             avarage_y=y_sum/point_sum
             deltas=abs(avarage_y-config.HEIGHT_LINE*edges.shape[0])
-            # 竖线有2种情况，斜率很大可近似看作，或者是理想的 斜率不存在
-            if x1!=x2:
-                tan=(y1-y2)/(x1-x2)
-                # 如果斜率很大判定为直线
-                if abs(tan)>=config.SLOPE_VERTICAL_THRESHOLD and abs(y1-y2)>config.MIN_LINE_HEIGHT_RATI*edges.shape[0]:
-                        T+=1
-            else:
-                T+1                                       
+                                   
     # average=fn/n
     # delta=average-rw/2
     return T,o,deltas
@@ -121,14 +129,14 @@ def identify_mode(mode):
     return mode
 
 
-def reversing_task(mode,edges,orgb):
-    myprint("mode is",mode)
+def reversing_task(mode,edges,orgb,ver_edge,hor_edge):
+    # myprint("mode is",mode)
     if mode in (1,2):
         # 如果不在执行倒车任务，就进行倒车检测
         if not globals.reversing:
         # 每检测到有效竖线后就等待一段时间
             if globals.diff_time>=config.DETECTION_TIME_INTERVAL:
-                detect_flag, orgb ,delta= detect_line(edges, orgb)
+                detect_flag, orgb ,delta= detect_line(edges, orgb,ver_edge,hor_edge)
                 if detect_flag:
                     globals.detect += 1
                     myprint("detect+1,   detect=",globals.detect)
@@ -155,7 +163,7 @@ def reversing_task(mode,edges,orgb):
 
 
     # 连续倒车入库
-    if mode==3:
+    elif mode==3:
         # 完成全部倒车任务后退出
         if globals.reverse_count>=config.MAX_REVERSE:
             return  
@@ -163,7 +171,7 @@ def reversing_task(mode,edges,orgb):
         # 进行倒车检测
         if not globals.reversing:
             if globals.diff_time>=config.DETECTION_TIME_INTERVAL:
-                detect_flag, orgb ,delta= detect_line(edges, orgb)
+                detect_flag, orgb ,delta= detect_line(edges, orgb,ver_edge,hor_edge)
                 print("[INFO] delta=",delta)
                 if detect_flag:
                     globals.detect += 1
@@ -237,6 +245,6 @@ def slice_roi(origin,LEFT,RIGHT,TOP,BOTTOM,slice=True,draw=False):
         cv2.rectangle(origin, (left, top), (right, bottom), (0, 255, 0), 2)
     if slice==True:
         return roi
-    # 否则返回原图
+    # 否则返回原图和顶点坐标
     else:
-        return origin
+        return origin,[left, right, top, bottom]
